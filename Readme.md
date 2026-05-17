@@ -60,7 +60,7 @@ CREATE INDEX orders_status_date_idx ON orders(status, date_created);
 ### Без индексов
 
 Time: 33555 ms
-
+```sql
 EXPLAIN (ANALYZE, BUFFERS):
   Finalize GroupAggregate  ... (actual time=33461..33467 rows=7)
     Parallel Hash Join  (actual time=14003..33419 rows=84283)
@@ -70,11 +70,11 @@ EXPLAIN (ANALYZE, BUFFERS):
           Filter: status='shipped' AND date_created > NOW()-INTERVAL '7 DAY'
           Rows Removed by Filter: 3 249 050
   Execution Time: 33 555 ms
-
+```
 ### С индексами
 
 Time: 21810 ms
-
+```sql
 EXPLAIN (ANALYZE, BUFFERS):
   Finalize GroupAggregate  ... (actual time=21787..21792 rows=7)
     Parallel Hash Join  (actual time=92..21738 rows=84283)
@@ -84,7 +84,7 @@ EXPLAIN (ANALYZE, BUFFERS):
           Recheck Cond: status='shipped' AND date_created > NOW()-INTERVAL '7 DAY'
           Bitmap Index Scan on orders_date_status_date_idx  (actual time=15..15)
   Execution Time: 21 810 ms
-
+```
 ### Вывод
 
 Общее время сократилось в ~1.5 раза (33.5 → 21.8 сек).
