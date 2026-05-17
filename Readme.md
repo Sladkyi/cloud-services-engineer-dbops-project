@@ -55,11 +55,40 @@
 CREATE INDEX order_product_order_id_idx ON order_product(order_id);
 CREATE INDEX orders_status_date_idx ON orders(status, date_created);
 
-Замеры на store_default (10М заказов):
+Замеры на store_default (10М заказов).
 
-Без индексов — 33555 мс
-С индексами  — 21810 мс
+### Без индексов
 
-Получилось в ~1.5 раза быстрее. Основной выигрыш на фильтре orders_date —
-там было 13.9 сек, стало 40 мс. Join по order_product всё равно делается
-сегскан + хэшджойн, отсюда оставшиеся 20 сек.
+Time: 33555 ms
+
+EXPLAIN (ANALYZE, BUFFERS):
+  Finalize GroupAggregate  ... (actual time=33461..33467 rows=7)
+    Parallel Hash Join  (actual time=14003..33419 rows=84283)
+      Parallel Seq Scan on order_product  (actual time=18..18324)
+      Parallel Hash
+        Parallel Seq Scan on orders_date
+          Filter: status='shipped' AND date_created > NOW()-INTERVAL '7 DAY'
+          Rows Removed by Filter: 3 249 050
+  Execution Time: 33 555 ms
+
+### С индексами
+
+Time: 21810 ms
+
+EXPLAIN (ANALYZE, BUFFERS):
+  Finalize GroupAggregate  ... (actual time=21787..21792 rows=7)
+    Parallel Hash Join  (actual time=92..21738 rows=84283)
+      Parallel Seq Scan on order_product  (actual time=20..20635)
+      Parallel Hash
+        Parallel Bitmap Heap Scan on orders_date  (actual time=16..40 rows=84283)
+          Recheck Cond: status='shipped' AND date_created > NOW()-INTERVAL '7 DAY'
+          Bitmap Index Scan on orders_date_status_date_idx  (actual time=15..15)
+  Execution Time: 21 810 ms
+
+### Вывод
+
+Общее время сократилось в ~1.5 раза (33.5 → 21.8 сек).
+Главный эффект — на фильтре orders_date: 13.9 сек → 40 мс (×350) благодаря
+композитному индексу. Join по order_product всё равно делается через
+parallel seq scan + hash join — постгресу так дешевле по cost-модели,
+чем nested loop с индексом, поэтому 20 сек остаются в join.
